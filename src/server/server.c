@@ -12,16 +12,23 @@
 #include <signal.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <errno.h>
 
 
 #define MAX_CLIENT 5
 #define IP "127.0.0.1"
 #define PORT 9696
 
+void setUnlock();
+
 // [TODO] При завершении процесса мьютех уничтожить.
 // pthread_mutex_lock(&mutex);
 // unlock
 //pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+const char *lockfile = "./lock/serverOne.lock";
+int locker_fd;
+
 
 bool isAlive = true;
 
@@ -32,6 +39,7 @@ pthread_t clients[MAX_CLIENT];
 int connClientCount = 0;
 
 void errorHandler(char *message) {
+    setUnlock();
     char *buffer = malloc(sizeof(char) * (4 + 50));
     memset(buffer, '\0', sizeof(buffer));
 
@@ -51,20 +59,6 @@ void addClient(pthread_t *client) {
 //            printf("Add client: %ld ", clients[i]);
 //        }
 //        printf("\n");
-}
-
-void endServer() {
-    printf("\n[+] Interrupt: CTRL+C\n");
-
-    isAlive = false;
-    for (int i = 0; i < MAX_CLIENT; i++) {
-        if (clients[i] != (void *) 0) {
-            pthread_join(clients[i], NULL);
-        }
-    }
-
-//    pthread_mutex_destroy();
-    exit(SIGINT);
 }
 
 void *clientHandler(void *argc) {
@@ -87,7 +81,7 @@ void *clientHandler(void *argc) {
 
     close(clientSocket);
     printf("[+] Client [%d] disconnected!\n", clientSocket);
-    free(&clientSocket);
+//    free(&clientSocket);
 
     return NULL;
 }
@@ -107,8 +101,8 @@ int Socket(int domain, int type, int protocol) {
     return fd;
 }
 
+// Binds a socket to a specific address (IP + PORT).
 void Bind(int server_socket, struct sockaddr *server_address, int server_address_size) {
-    // Binds a socket to a specific address (IP + PORT).
     if (bind(server_socket, server_address, server_address_size) < 0) {
         errorHandler("Bind error");
     }
@@ -116,6 +110,7 @@ void Bind(int server_socket, struct sockaddr *server_address, int server_address
     printf("[+] Bind to the address: %s:%d.\n", IP, PORT);
 }
 
+// Start listening on the port.
 void Listen(int server_socket, int count) {
     if (listen(server_socket, count) < 0) {
         errorHandler("Listen");
@@ -124,6 +119,7 @@ void Listen(int server_socket, int count) {
     message("Listening");
 }
 
+// Прослушивание множества на предмета активизации.
 int Select(int fd_set_size, fd_set *fd_set_buffer_r, fd_set *fd_set_buffer_w, fd_set *fd_set_buffer_e,
            struct timeval *timeout_val) {
     int status;
@@ -134,14 +130,71 @@ int Select(int fd_set_size, fd_set *fd_set_buffer_r, fd_set *fd_set_buffer_w, fd
     return status;
 }
 
+// Принятия входящего подключения.
 int Accept(int server_socket, struct sockaddr *client_address, socklen_t *client_address_size) {
     int client_fd;
     return ((client_fd = accept(server_socket, (struct sockaddr *) client_address, client_address_size)) > 2)
            ? client_fd : -1;
 }
 
+// Установка блокировки на создание дополнительного экземпляра
+void setLock() {
+    // Пытаемся открыть файл.
+    int fd;
+    if ((fd = open(lockfile, O_CREAT | O_RDWR, 0666)) == -1) {
+        if (errno == EACCES || errno == EAGAIN) {
+            message("сервер уже запущен");
+        } else {
+            fprintf(stderr, "Ошибка открытия файла блокировки: %s\n", strerror(errno));
+        }
+        exit(1);
+    }
+
+    // Установка блокировки, если файл открылся.
+    if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
+        printf("Сервер уже запущен\n");
+        exit(1);
+    }
+
+    message("Сервер запустился, блокировка установлена");
+}
+
+// убирает блокировку
+void setUnlock() {
+    close(locker_fd);
+    unlink(lockfile);
+    message("Блокировка убрана");
+}
+
+// Инициализация сокета
+void Init(int *server_socket) {
+    setLock();
+    *server_socket = Socket(AF_INET, SOCK_STREAM, 0);
+}
+
+//void setSocketProperty()
+
+void endServer() {
+    message("Interrupt: CTRL+C");
+
+    isAlive = false;
+    for (int i = 0; i < MAX_CLIENT; i++) {
+        if (clients[i] != (void *) 0) {
+            pthread_join(clients[i], NULL);
+        }
+    }
+
+//    pthread_mutex_destroy();
+    setUnlock();
+    close(serverSocket);
+
+    exit(0);
+}
+
+
 // Driver.
 int main() {
+    Init(&serverSocket);
     signal(SIGINT, endServer);
 
     int clientSocket;
@@ -151,7 +204,6 @@ int main() {
 
     // Создает сокет.
 //    serverSocket = malloc(sizeof(int));
-    serverSocket = Socket(AF_INET, SOCK_STREAM, 0);
 
     // Sets socket property.
     struct timeval timeout = {
@@ -178,10 +230,7 @@ int main() {
     serverAddress.sin_port = PORT;
     serverAddress.sin_addr.s_addr = inet_addr(IP);
 
-//     Binds a socket to a specific address (IP + PORT).
     Bind(serverSocket, (struct sockaddr *) &serverAddress, sizeof(serverAddress));
-
-//     Start listening on the port.
     Listen(serverSocket, 5);
 
 //     Настройка множества дескрпиторов для отслеживания.
