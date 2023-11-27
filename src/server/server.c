@@ -15,6 +15,7 @@
 #include <errno.h>
 
 
+#define LOCKER_PATH "./lock/serverOne.lock"
 #define MAX_CLIENT 5
 #define IP "127.0.0.1"
 #define PORT 9696
@@ -26,9 +27,7 @@ void setUnlock();
 // unlock
 //pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-const char *lockfile = "./lock/serverOne.lock";
-int locker_fd;
-
+int lockerFd;
 
 bool isAlive = true;
 
@@ -39,15 +38,16 @@ pthread_t clients[MAX_CLIENT];
 int connClientCount = 0;
 
 void errorHandler(char *message) {
-    setUnlock();
     char *buffer = malloc(sizeof(char) * (4 + 50));
     memset(buffer, '\0', sizeof(buffer));
+
 
     strcat(buffer, "[-] ");
     strcat(buffer, message);
     perror(buffer);
 
     free(&buffer);
+    setUnlock(lockerFd);
     exit(1);
 }
 
@@ -138,10 +138,8 @@ int Accept(int server_socket, struct sockaddr *client_address, socklen_t *client
 }
 
 // Установка блокировки на создание дополнительного экземпляра
-void setLock() {
-    // Пытаемся открыть файл.
-    int fd;
-    if ((fd = open(lockfile, O_CREAT | O_RDWR, 0666)) == -1) {
+void setLock(int locker_fd) {
+    if ((locker_fd = open(LOCKER_PATH, O_CREAT | O_RDWR, 0666)) == -1) {
         if (errno == EACCES || errno == EAGAIN) {
             message("сервер уже запущен");
         } else {
@@ -151,7 +149,7 @@ void setLock() {
     }
 
     // Установка блокировки, если файл открылся.
-    if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
+    if (flock(locker_fd, LOCK_EX | LOCK_NB) == -1) {
         printf("Сервер уже запущен\n");
         exit(1);
     }
@@ -159,20 +157,18 @@ void setLock() {
     message("Сервер запустился, блокировка установлена");
 }
 
-// убирает блокировку
-void setUnlock() {
+// Убирает блокировку на создание дополнительного экземпляра
+void setUnlock(int locker_fd) {
     close(locker_fd);
-    unlink(lockfile);
+    unlink(LOCKER_PATH);
     message("Блокировка убрана");
 }
 
 // Инициализация сокета
-void Init(int *server_socket) {
-    setLock();
-    *server_socket = Socket(AF_INET, SOCK_STREAM, 0);
+void Init(int server_socket) {
+    setLock(lockerFd);
+    server_socket = Socket(AF_INET, SOCK_STREAM, 0);
 }
-
-//void setSocketProperty()
 
 void endServer() {
     message("Interrupt: CTRL+C");
@@ -185,59 +181,65 @@ void endServer() {
     }
 
 //    pthread_mutex_destroy();
-    setUnlock();
+    setUnlock(lockerFd);
     close(serverSocket);
 
     exit(0);
 }
 
+// Опция позволяет установить таймер на прослушивание.
+void setTimeOutOpt(int socket, void *value, socklen_t value_len) {
+    if (setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, value, value_len) < 0) {
+        errorHandler("SETSOCKOPT - RCVTIMEO");
+    }
+}
+
+// Опция, позволяющая переиспользовать адрес.
+void setReuseAddrOpt(int socket, void *value, socklen_t value_len) {
+    if (setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, value, value_len) < 0) {
+        errorHandler("SETSOCKOPT - REUSEADDR");
+    }
+}
+
+// Установка сокета в неблокирующий режим.
+void setSocketNonblock(int socket) {
+    int flags = fcntl(socket, F_GETFL, 0);
+    fcntl(socket, F_SETFL, flags | O_NONBLOCK);
+}
 
 // Driver.
 int main() {
-    Init(&serverSocket);
+    Init(serverSocket);
     signal(SIGINT, endServer);
-
-    int clientSocket;
-    struct sockaddr_in serverAddress, clientAddress;
-    socklen_t clientAddressSize;
-//    memset(&clients, '\0', sizeof(pthread_t) * MAX_CLIENT);
-
-    // Создает сокет.
-//    serverSocket = malloc(sizeof(int));
 
     // Sets socket property.
     struct timeval timeout = {
             .tv_sec = 4,
             .tv_usec = 0,
     };
-    if (setsockopt(serverSocket, SOL_SOCKET, SO_RCVTIMEO, (char *) &timeout, sizeof(timeout)) < 0) {
-        printf("sdas");
-        errorHandler("SETSOCKOPT - RCVTIMEO");
-    }
-
+    setTimeOutOpt(serverSocket, (char *) &timeout, sizeof(timeout));
     int optFlag = 1;
-    if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &optFlag, sizeof(optFlag)) < 0) {
-        errorHandler("SETSOCKOPT - REUSEADDR");
-    }
-
-    // Установка сокета в неблокирующий режим.
-    int flags = fcntl(serverSocket, F_GETFL, 0);
-    fcntl(serverSocket, F_SETFL, flags | O_NONBLOCK);
+    setReuseAddrOpt(serverSocket, &optFlag, sizeof(optFlag));
+    setSocketNonblock(serverSocket);
 
     // Address settings.
+    struct sockaddr_in serverAddress;
     memset(&serverAddress, '\0', sizeof(serverAddress));
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = PORT;
     serverAddress.sin_addr.s_addr = inet_addr(IP);
-
     Bind(serverSocket, (struct sockaddr *) &serverAddress, sizeof(serverAddress));
-    Listen(serverSocket, 5);
+    Listen(serverSocket, MAX_CLIENT);
 
-//     Настройка множества дескрпиторов для отслеживания.
+    // Настройка множества дескрпиторов.
     FD_ZERO(&readableFd);
     FD_SET(serverSocket, &readableFd);
     fd_set actual_fdSet;
     int status;
+
+    int clientSocket;
+    struct sockaddr_in clientAddress;
+    socklen_t clientAddressSize;
 
     while (1) {
         actual_fdSet = readableFd;
