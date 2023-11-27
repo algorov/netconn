@@ -22,10 +22,7 @@
 
 void setUnlock();
 
-// [TODO] При завершении процесса мьютех уничтожить.
-// pthread_mutex_lock(&mutex);
-// unlock
-//pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+char *FONT_COLOR = "\033[1;32;40m";
 
 int lockerFd;
 
@@ -205,6 +202,30 @@ void setReuseAddrOpt(int socket, void *value, socklen_t value_len) {
 void setSocketNonblock(int socket) {
     int flags = fcntl(socket, F_GETFL, 0);
     fcntl(socket, F_SETFL, flags | O_NONBLOCK);
+}
+
+
+/*
+ * Individual tasks
+ * */
+// Изменят цвет шрифта.
+bool setFontColor(int fgCode, int bgCode) {
+    if (((30 <= fgCode && fgCode <= 37) || ((90 <= fgCode && fgCode <= 97)))
+        && ((40 <= bgCode && bgCode <= 47) || (100 <= bgCode && bgCode <= 107))) {
+        char *code[16];
+        memset(code, '\0', sizeof(code) / sizeof(char));
+        sprintf((char *) code, "\\033[1;%d;%dm", bgCode, fgCode);
+        FONT_COLOR = (char *) code;
+
+        return (strcmp(FONT_COLOR, (const char *) code) == 0) ? true : false;
+    } else {
+        return false;
+    }
+}
+
+// Возвращает код цвета шрифта.
+char* getFontColor() {
+    return FONT_COLOR;
 }
 
 // Driver.
