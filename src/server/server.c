@@ -14,14 +14,15 @@
 #include <stdbool.h>
 #include <errno.h>
 
-
+#define SERVER_NAME "ServerOne"
 #define LOCKER_PATH "./lock/serverOne.lock"
 #define MAX_CLIENT 5
 #define IP "127.0.0.1"
 #define PORT 9696
 
-int loggerFd;
+int loggerFd = -1;
 
+void logging(char *msg);
 
 void setUnlock();
 
@@ -44,6 +45,8 @@ void errorHandler(char *message) {
 
     strcat(buffer, "[-] ");
     strcat(buffer, message);
+    logging(buffer);
+
     perror(buffer);
 
     free(&buffer);
@@ -62,6 +65,7 @@ void addClient(pthread_t *client) {
 }
 
 void message(char *message) {
+    logging(message);
     printf("[+] %s.\n", message);
 }
 
@@ -91,7 +95,7 @@ void Listen(int server_socket, int count) {
         errorHandler("Listen");
     }
 
-    message("Listening");
+    message("Listening...");
 }
 
 // Прослушивание множества на предмета активизации.
@@ -275,7 +279,8 @@ void getRequest(int *client, char *buffer) {
 
 void *clientHandler(void *argc) {
     int clientSocket = *(int *) argc;
-    printf("[+] Client [%d] connected!\n", clientSocket);
+    logging("[+] Client connected!");
+//    printf("[+] Client [%d] connected!\n", clientSocket);
 
     char *helpInfo = "\n[1] - Получение цвета шрифта\n"
                      "[2] - Изменение цвета шрифта\n"
@@ -301,11 +306,13 @@ void *clientHandler(void *argc) {
 
         switch ((int) strtol(request, NULL, 10)) {
             case 1:
+                logging("getFontColor");
                 getFontColor(response);
                 buildNewResponse(responseBuffer, response);
                 sendResponse(&clientSocket, responseBuffer);
                 break;
             case 2:
+                logging("setFontColor");
                 buildNewResponse(responseBuffer, "Какой ты хочешь цвет? Вводи только от 0 до 6");
                 sendResponse(&clientSocket, responseBuffer);
 
@@ -326,13 +333,16 @@ void *clientHandler(void *argc) {
                 sendResponse(&clientSocket, responseBuffer);
                 break;
             case 3:
+                logging("Help");
                 buildNewResponse(responseBuffer, helpInfo);
                 sendResponse(&clientSocket, responseBuffer);
                 break;
             case 4:
+                logging("Exit client");
                 isInterrupted = true;
                 break;
             default:
+                logging("что-то на французском");
                 buildNewResponse(responseBuffer, "Нет такой операции!");
                 sendResponse(&clientSocket, responseBuffer);
                 break;
@@ -344,8 +354,8 @@ void *clientHandler(void *argc) {
     }
 
     close(clientSocket);
-    printf("[+] Client [%d] disconnected!\n", clientSocket);
-    free(&clientSocket);
+//    printf("[+] Client [%d] disconnected!\n", clientSocket);
+//    free(&clientSocket);
 
     return NULL;
 }
@@ -356,21 +366,30 @@ void InitLogger(int *fd) {
     }
 }
 
+void logging(char *msg) {
+    if (loggerFd != -1) {
+        char *record[1024];
+        memset(record, '\0', sizeof(record) / sizeof(char));
+        strcat((char *) record, "[");
+        strcat((char *) record, SERVER_NAME);
+        strcat((char *) record, "] ");
+        strcat((char *) record, getCurrentDateTime());
+        strcat((char *) record, " : ");
+        strcat((char *) record, msg);
+        strcat((char *) record, "\n");
+
+        int nwrite;
+        if ((nwrite = write(loggerFd, record, strlen(record))) != 0) {
+            printf("Записал\n");
+        } else {
+            printf("Не удалось\n");
+        }
+    }
+}
+
 // Driver.
 int main() {
     InitLogger(&loggerFd);
-
-    char *buf = "./server.out: HEhehhehehehe";
-
-    int nwrite;
-    while (1) {
-        if ((nwrite = write(loggerFd, buf, strlen(buf))) != 0) {
-            printf("Записал\n");
-            nwrite = 0;
-
-            sleep(10);
-        }
-    }
 
     Init(&serverSocket);
     signal(SIGINT, endServer);
@@ -383,7 +402,7 @@ int main() {
     setTimeOutOpt(serverSocket, (char *) &timeout, sizeof(timeout));
     int optFlag = 1;
     setReuseAddrOpt(serverSocket, &optFlag, sizeof(optFlag));
-    setSocketNonblock(serverSocket);
+//    setSocketNonblock(serverSocket);
 
     // Address settings.
     struct sockaddr_in serverAddress;

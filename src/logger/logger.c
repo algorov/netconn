@@ -9,15 +9,20 @@
 #include <fcntl.h>
 #include <string.h>
 
-char *fifoPath = "./fifo";
-char *serv1 = "./server.out";
+#define FIFO_PATCH "./fifo"
+#define SERVER_NAME_ONE "ServerOne"
+#define SERVER_NAME_TWO "ServerTwo"
 
-int fd;
+int fifoFd;
+int servOneLogFd, servTwoLogFd;
 
 void ender(int signal) {
     if (SIGINT == signal) {
-        close(fd);
-        unlink(fifoPath);
+        close(fifoFd);
+        unlink(FIFO_PATCH);
+
+        close(servOneLogFd);
+        close(servTwoLogFd);
     }
 
     exit(0);
@@ -26,42 +31,49 @@ void ender(int signal) {
 int main() {
     signal(SIGINT, ender);
 
-    if (mkfifo(fifoPath, 0666) == -1) {
+    if (mkfifo(FIFO_PATCH, 0666) == -1) {
         perror("Не смогли создать канал");
+        exit(1);
     }
     printf("[+] Канал создан!\n");
 
-    if ((fd = open(fifoPath, O_RDONLY)) == -1) {
+    if ((fifoFd = open(FIFO_PATCH, O_RDONLY)) == -1) {
         perror("Не смогли открыть канал");
         exit(1);
     }
 
-    int fd_1;
-    if ((fd_1 = open("./one.log", O_CREAT | O_WRONLY | O_TRUNC, 0666)) == -1) {
+    // создаем логи для каждого сервера
+    if ((servOneLogFd = open("./../../logs/ServerOne.log", O_CREAT | O_WRONLY | O_TRUNC, 0666)) == -1) {
         perror("Не смогли создать логгер");
     }
-    off_t offset = lseek(fd_1, 0, SEEK_END);
+    lseek(servOneLogFd, 0, SEEK_END);
+
+    if ((servTwoLogFd = open("./../../logs/ServerTwo.log", O_CREAT | O_WRONLY | O_TRUNC, 0666)) == -1) {
+        perror("Не смогли создать логгер");
+    }
+    lseek(servTwoLogFd, 0, SEEK_END);
+
 
     char *buffer[1024];
     memset(buffer, '\0', 1024);
 
     int nread;
     while (1) {
-        if ((nread = read(fd, buffer, 1024)) != 0) {
-            printf("%s\n", buffer);
-
-            if (strstr(buffer, serv1) != NULL) {
-                if (fd_1 != -1) {
-                    write(fd_1, buffer, strlen(buffer));
+        if ((nread = read(fifoFd, buffer, 1024)) != 0) {
+            if (strstr(buffer, SERVER_NAME_ONE) != NULL) {
+                if (servOneLogFd != -1) {
+                    write(servOneLogFd, buffer, strlen(buffer));
                 }
-            } else {
-                printf("Иной сервер\n");
+            } else if (strstr(buffer, SERVER_NAME_TWO) != NULL) {
+                if (servTwoLogFd != -1) {
+                    write(servTwoLogFd, buffer, strlen(buffer));
+                } else {
+                    printf("Что-то другое...\n");
+                }
             }
 
-            memset(buffer, '\0', 1024);
             nread = 0;
+            memset(buffer, '\0', 1024);
         }
     }
-
-    return 0;
 }
