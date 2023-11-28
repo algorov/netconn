@@ -83,6 +83,9 @@ int main() {
         printf(">>> ");
         fgets(buffer, 1024, stdin);
         send(sock, buffer, strlen(buffer), 0);
+        if (((int) strtol(buffer, NULL, 10)) == 4) {
+            break;
+        }
 
         bzero(buffer, 1024);
         nread = 0;

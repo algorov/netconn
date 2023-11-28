@@ -253,6 +253,7 @@ void clearBuffer(char *buffer) {
 
 void buildNewResponse(char *response_buffer, char *response) {
     clearBuffer(response_buffer);
+    response_buffer[0] = '\n';
     strcat(response_buffer, getCurrentDateTime());
     strcat(response_buffer, ": ");
     strcat(response_buffer, response);
@@ -275,7 +276,8 @@ void *clientHandler(void *argc) {
 
     char *helpInfo = "\n[1] - Получение цвета шрифта\n"
                      "[2] - Изменение цвета шрифта\n"
-                     "[3] - Получить справку\n";
+                     "[3] - Получить справку\n"
+                     "[4] - Отключиться от сервера\n";
 
     char request[1024];
     char responseBuffer[1024];
@@ -289,6 +291,7 @@ void *clientHandler(void *argc) {
     buildNewResponse(responseBuffer, helpInfo);
     sendResponse(&clientSocket, responseBuffer);
 
+    bool isInterrupted = false;
     while (isAlive) {
         clearBuffer(request);
         getRequest(&clientSocket, request);
@@ -323,16 +326,23 @@ void *clientHandler(void *argc) {
                 buildNewResponse(responseBuffer, helpInfo);
                 sendResponse(&clientSocket, responseBuffer);
                 break;
+            case 4:
+                isInterrupted = true;
+                break;
             default:
                 buildNewResponse(responseBuffer, "Нет такой операции!");
                 sendResponse(&clientSocket, responseBuffer);
                 break;
         }
+
+        if (isInterrupted) {
+            break;
+        }
     }
 
     close(clientSocket);
     printf("[+] Client [%d] disconnected!\n", clientSocket);
-//    free(&clientSocket);
+    free(&clientSocket);
 
     return NULL;
 }
