@@ -264,26 +264,38 @@ void sendResponse(int *client, char *response) {
 }
 
 void getRequest(int *client, char *buffer) {
-    recv(*client, buffer, sizeof(buffer), 0);
+    clearBuffer(buffer);
+    int nread;
+    while ((nread = recv(*client, buffer, sizeof(buffer), 0)) == 0) {}
 }
 
 void *clientHandler(void *argc) {
     int clientSocket = *(int *) argc;
     printf("[+] Client [%d] connected!\n", clientSocket);
 
-    char *helpInfo = "привет!\n"
-                     "[1] - Получение цвета шрифта\n"
-                     "[2] - Изменение цвета шрифта\n";
+    char *helpInfo = "\n[1] - Получение цвета шрифта\n"
+                     "[2] - Изменение цвета шрифта\n"
+                     "[3] - Получить справку\n";
 
     char request[1024];
     char responseBuffer[1024];
     char response[64];
 
+    buildNewResponse(responseBuffer, "Хеллоуу! Нажми ентер для начала...\n");
+    sendResponse(&clientSocket, responseBuffer);
 
+    getRequest(&clientSocket, request);
+
+    buildNewResponse(responseBuffer, helpInfo);
+    strcat(responseBuffer, "--------------------------------------------\n");
+    sendResponse(&clientSocket, responseBuffer);
+    bool flag = false;
     while (isAlive) {
-        clearBuffer(request);
-        getRequest(&clientSocket, request);
-        send(clientSocket, helpInfo, strlen(helpInfo), 0);
+        if (flag) {
+            buildNewResponse(responseBuffer, "--------------------------------------------");
+            sendResponse(&clientSocket, responseBuffer);
+        }
+
         clearBuffer(request);
         getRequest(&clientSocket, request);
 
@@ -313,10 +325,18 @@ void *clientHandler(void *argc) {
                 }
                 sendResponse(&clientSocket, responseBuffer);
                 break;
+            case 3:
+                buildNewResponse(responseBuffer, helpInfo);
+                sendResponse(&clientSocket, responseBuffer);
+                break;
             default:
                 buildNewResponse(responseBuffer, "Нет такой операции!");
                 sendResponse(&clientSocket, responseBuffer);
                 break;
+        }
+
+        if (!flag) {
+            flag = true;
         }
     }
 
