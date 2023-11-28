@@ -219,6 +219,7 @@ bool setFontColor(int code) {
 // Возвращает код цвета шрифта.
 void getFontColor(char *buffer) {
     printf("\033[1;0;0m   %s OKEY   \033[1;0;0m\n", FONT_COLOR);
+    memset(buffer, '\0', sizeof(buffer) / sizeof(char));
     strcat(buffer, FONT_COLOR);
     strcat(buffer, "\n");
     strcat(buffer, "\033[1;0;0m");
@@ -246,68 +247,75 @@ char *getCurrentDateTime() {
     return (char *) datetime;
 }
 
+void clearBuffer(char *buffer) {
+    memset(buffer, '\0', sizeof(buffer) / sizeof(char));
+}
+
+void buildNewResponse(char *response_buffer, char *response) {
+    clearBuffer(response_buffer);
+    strcat(response_buffer, getCurrentDateTime());
+    strcat(response_buffer, ": ");
+    strcat(response_buffer, response);
+    strcat(response_buffer, "\n");
+}
+
+void sendResponse(int *client, char *response) {
+    send(*client, response, strlen(response), 0);
+}
+
+void getRequest(int *client, char *buffer) {
+    recv(*client, buffer, sizeof(buffer), 0);
+}
+
 void *clientHandler(void *argc) {
-    bool waitFlag;
+    int clientSocket = *(int *) argc;
+    printf("[+] Client [%d] connected!\n", clientSocket);
+
     char *helpInfo = "привет!\n"
                      "[1] - Получение цвета шрифта\n"
                      "[2] - Изменение цвета шрифта\n";
-    int clientSocket = *(int *) argc;
-    printf("[+] Client [%d] connected!\n", clientSocket);
+
     char request[1024];
-    char response[1024];
+    char responseBuffer[1024];
+    char response[64];
 
 
     while (isAlive) {
-        // [TODO] Реализовать peer-to-peer коммуникацию.
-        //  fgets(buffer, 1024, stdin);
-        memset(request, '\0', sizeof(request) / sizeof(char));
-        recv(clientSocket, request, sizeof(request), 0);
+        clearBuffer(request);
+        getRequest(&clientSocket, request);
         send(clientSocket, helpInfo, strlen(helpInfo), 0);
-        memset(request, '\0', sizeof(request) / sizeof(char));
-        recv(clientSocket, request, sizeof(request), 0);
+        clearBuffer(request);
+        getRequest(&clientSocket, request);
 
-        memset(response, '\0', sizeof(response) / sizeof(char));
-        strcat(response, getCurrentDateTime());
-        strcat(response, ": ");
-
-        int cmd = (int) strtol(request, NULL, 10);
-        printf("CMD: %d\n", cmd);
-        switch (cmd) {
+        switch ((int) strtol(request, NULL, 10)) {
             case 1:
                 getFontColor(response);
-                strcat(response, "\n");
-                send(clientSocket, response, strlen(response), 0);
+                buildNewResponse(responseBuffer, response);
+                sendResponse(&clientSocket, responseBuffer);
                 break;
             case 2:
-                strcat(response, "Какой ты хочешь цвет? Вводи только от 0 до 6");
-                strcat(response, "\n");
-                send(clientSocket, response, strlen(response), 0);
+                buildNewResponse(responseBuffer, "Какой ты хочешь цвет? Вводи только от 0 до 6");
+                sendResponse(&clientSocket, responseBuffer);
+                clearBuffer(request);
+                getRequest(&clientSocket, request);
 
-//                // [TODO]: реализовать интерфейся для второго запроса
-                memset(request, '\0', sizeof(request) / sizeof(char));
-                recv(clientSocket, request, sizeof(request), 0);
-                memset(response, '\0', sizeof(response) / sizeof(char));
-                strcat(response, getCurrentDateTime());
-                strcat(response, ": ");
                 int select = -1;
                 int index = strcspn(request, "\n");
                 if (request[index] == '\n') {
-//                    printf("HELLOO EPTA\n");
                     request[index] = '\0';
                 }
+
                 sscanf(request, "%d", &select);
                 if (setFontColor(select)) {
-                    strcat(response, "Успех!");
+                    buildNewResponse(responseBuffer, "Успех!");
                 } else {
-                    strcat(response, "фейл!");
+                    buildNewResponse(responseBuffer, "Ошибка!");
                 }
-                send(clientSocket, response, strlen(response), 0);
-
+                sendResponse(&clientSocket, responseBuffer);
                 break;
             default:
-                strcat(response, "Нет такоой операции");
-                strcat(response, "\n");
-                send(clientSocket, response, strlen(response), 0);
+                buildNewResponse(responseBuffer, "Нет такой операции!");
+                sendResponse(&clientSocket, responseBuffer);
                 break;
         }
     }
