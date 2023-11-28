@@ -10,6 +10,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <stdbool.h>
 
 
 #define IP "127.0.0.1"
@@ -47,17 +48,47 @@ int main() {
 
 //    while (1) {
 //        char *buffer[256];
+    char buffer[1024];
+
+//    bzero(buffer, 1024);
+//    recv(sock, buffer, sizeof(buffer), 0);
+//    printf("%s", buffer);
+//
+//    sleep(3);
+//
+//    bzero(buffer, 1024);
+//    recv(sock, buffer, sizeof(buffer), 0);
+//    printf("%s", buffer);
+
+    int nread = 0;
+    bzero(buffer, 1024);
+    while ((nread = recv(sock, buffer, sizeof(buffer), 0) == 0)){
+    }
+    printf("%s", buffer);
+    nread = 0;
+
+    bzero(buffer, 1024);
+    printf(">>> ");
+    fgets(buffer, 1024, stdin);
+    send(sock, buffer, strlen(buffer), 0);
+
+    bzero(buffer, 1024);
+    nread = 0;
+    while ((nread = recv(sock, buffer, sizeof(buffer), 0) == 0)){
+    }
+    printf("%s", buffer);
 
     while (1) {
-        char buffer[1024];
-//        bzero(buffer, 1024);
-//        recv(sock, buffer, sizeof(buffer), 0);
-//        printf("%s", buffer);
-
+        bzero(buffer, 1024);
+        printf(">>> ");
         fgets(buffer, 1024, stdin);
         send(sock, buffer, strlen(buffer), 0);
 
-
+        bzero(buffer, 1024);
+        nread = 0;
+        while ((nread = recv(sock, buffer, sizeof(buffer), 0) == 0)){
+        }
+        printf("%s", buffer);
     }
 //    sleep(10);
 //        recv(sock, buffer, sizeof(buffer), 0);

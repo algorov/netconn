@@ -287,15 +287,9 @@ void *clientHandler(void *argc) {
     getRequest(&clientSocket, request);
 
     buildNewResponse(responseBuffer, helpInfo);
-    strcat(responseBuffer, "--------------------------------------------\n");
     sendResponse(&clientSocket, responseBuffer);
-    bool flag = false;
-    while (isAlive) {
-        if (flag) {
-            buildNewResponse(responseBuffer, "--------------------------------------------");
-            sendResponse(&clientSocket, responseBuffer);
-        }
 
+    while (isAlive) {
         clearBuffer(request);
         getRequest(&clientSocket, request);
 
@@ -308,7 +302,7 @@ void *clientHandler(void *argc) {
             case 2:
                 buildNewResponse(responseBuffer, "Какой ты хочешь цвет? Вводи только от 0 до 6");
                 sendResponse(&clientSocket, responseBuffer);
-                clearBuffer(request);
+
                 getRequest(&clientSocket, request);
 
                 int select = -1;
@@ -333,10 +327,6 @@ void *clientHandler(void *argc) {
                 buildNewResponse(responseBuffer, "Нет такой операции!");
                 sendResponse(&clientSocket, responseBuffer);
                 break;
-        }
-
-        if (!flag) {
-            flag = true;
         }
     }
 
