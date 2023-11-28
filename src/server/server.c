@@ -22,7 +22,7 @@
 
 void setUnlock();
 
-char *FONT_COLOR = "\033[1;32;40m";
+char *FONT_COLOR = {"\033[1;32;40m"};
 
 int lockerFd;
 
@@ -56,31 +56,6 @@ void addClient(pthread_t *client) {
 //            printf("Add client: %ld ", clients[i]);
 //        }
 //        printf("\n");
-}
-
-void *clientHandler(void *argc) {
-    int clientSocket = *(int *) argc;
-    printf("[+] Client [%d] connected!\n", clientSocket);
-    char buffer[1024];
-
-    while (isAlive) {
-        // [TODO] Реализовать peer-to-peer коммуникацию.
-//        bzero(buffer, 1024);
-//        fgets(buffer, 1024, stdin);
-//        send(clientSocket, buffer, strlen(buffer), 0);
-
-        bzero(buffer, 1024);
-        recv(clientSocket, buffer, sizeof(buffer), 0);
-        printf("Client: %s", buffer);
-
-        sleep(3);
-    }
-
-    close(clientSocket);
-    printf("[+] Client [%d] disconnected!\n", clientSocket);
-//    free(&clientSocket);
-
-    return NULL;
 }
 
 void message(char *message) {
@@ -162,9 +137,9 @@ void setUnlock(int locker_fd) {
 }
 
 // Инициализация сокета
-void Init(int server_socket) {
+void Init(int *server_socket) {
     setLock(lockerFd);
-    server_socket = Socket(AF_INET, SOCK_STREAM, 0);
+    *server_socket = Socket(AF_INET, SOCK_STREAM, 0);
 }
 
 void endServer() {
@@ -209,28 +184,144 @@ void setSocketNonblock(int socket) {
  * Individual tasks
  * */
 // Изменят цвет шрифта.
-bool setFontColor(int fgCode, int bgCode) {
-    if (((30 <= fgCode && fgCode <= 37) || ((90 <= fgCode && fgCode <= 97)))
-        && ((40 <= bgCode && bgCode <= 47) || (100 <= bgCode && bgCode <= 107))) {
-        char *code[16];
-        memset(code, '\0', sizeof(code) / sizeof(char));
-        sprintf((char *) code, "\\033[1;%d;%dm", bgCode, fgCode);
-        FONT_COLOR = (char *) code;
-
-        return (strcmp(FONT_COLOR, (const char *) code) == 0) ? true : false;
-    } else {
-        return false;
+bool setFontColor(int code) {
+    switch (code) {
+        // Default
+        case 0:
+            FONT_COLOR = "\033[1;0;0m\n";
+            break;
+        case 1:
+            FONT_COLOR = "\033[1;47;30m\n";
+            break;
+        case 2:
+            FONT_COLOR = "\033[1;102;30m\n";
+            break;
+        case 3:
+            FONT_COLOR = "\033[1;101;30m\n";
+            break;
+        case 4:
+            FONT_COLOR = "\033[1;103;30m\n";
+            break;
+        case 5:
+            FONT_COLOR = "\033[1;104;30m\n";
+            break;
+        case 6:
+            FONT_COLOR = "\033[1;43;33m\n";
+            break;
+        default:
+            return false;
+            break;
     }
+
+    return true;
 }
 
 // Возвращает код цвета шрифта.
-char* getFontColor() {
-    return FONT_COLOR;
+void getFontColor(char *buffer) {
+    printf("\033[1;0;0m   %s OKEY   \033[1;0;0m\n", FONT_COLOR);
+    strcat(buffer, FONT_COLOR);
+    strcat(buffer, "\n");
+    strcat(buffer, "\033[1;0;0m");
+}
+
+// Определяет текущую дату со временем
+char *getCurrentDateTime() {
+    int hours, minutes, seconds, day, month, year;
+    time_t now = time(NULL);
+    struct tm *local = localtime(&now);
+
+    hours = local->tm_hour;
+    minutes = local->tm_min;
+    seconds = local->tm_sec;
+
+    day = local->tm_mday;
+    month = local->tm_mon + 1;
+    year = local->tm_year + 1900;
+
+
+    char *datetime[22];
+    memset(datetime, '\0', sizeof(datetime) / sizeof(char));
+    sprintf((char *) datetime, "[%02d/%02d/%d %02d:%02d:%02d]", day, month, year, hours, minutes, seconds);
+
+    return (char *) datetime;
+}
+
+void *clientHandler(void *argc) {
+    bool waitFlag;
+    char *helpInfo = "привет!\n"
+                     "[1] - Получение цвета шрифта\n"
+                     "[2] - Изменение цвета шрифта\n";
+    int clientSocket = *(int *) argc;
+    printf("[+] Client [%d] connected!\n", clientSocket);
+    char request[1024];
+    char response[1024];
+
+
+    while (isAlive) {
+        // [TODO] Реализовать peer-to-peer коммуникацию.
+        //  fgets(buffer, 1024, stdin);
+        memset(request, '\0', sizeof(request) / sizeof(char));
+        recv(clientSocket, request, sizeof(request), 0);
+        send(clientSocket, helpInfo, strlen(helpInfo), 0);
+        memset(request, '\0', sizeof(request) / sizeof(char));
+        recv(clientSocket, request, sizeof(request), 0);
+
+        memset(response, '\0', sizeof(response) / sizeof(char));
+        strcat(response, getCurrentDateTime());
+        strcat(response, ": ");
+
+        int cmd = (int) strtol(request, NULL, 10);
+        printf("CMD: %d\n", cmd);
+        switch (cmd) {
+            case 1:
+                getFontColor(response);
+                strcat(response, "\n");
+                send(clientSocket, response, strlen(response), 0);
+                break;
+            case 2:
+                strcat(response, "Какой ты хочешь цвет? Вводи только от 0 до 6");
+                strcat(response, "\n");
+                send(clientSocket, response, strlen(response), 0);
+
+//                // [TODO]: реализовать интерфейся для второго запроса
+                memset(request, '\0', sizeof(request) / sizeof(char));
+                recv(clientSocket, request, sizeof(request), 0);
+                memset(response, '\0', sizeof(response) / sizeof(char));
+                strcat(response, getCurrentDateTime());
+                strcat(response, ": ");
+                int select = -1;
+                int index = strcspn(request, "\n");
+                if (request[index] == '\n') {
+//                    printf("HELLOO EPTA\n");
+                    request[index] = '\0';
+                }
+                sscanf(request, "%d", &select);
+                if (setFontColor(select)) {
+                    strcat(response, "Успех!");
+                } else {
+                    strcat(response, "фейл!");
+                }
+                send(clientSocket, response, strlen(response), 0);
+
+                break;
+            default:
+                strcat(response, "Нет такоой операции");
+                strcat(response, "\n");
+                send(clientSocket, response, strlen(response), 0);
+                break;
+        }
+    }
+
+    close(clientSocket);
+    printf("[+] Client [%d] disconnected!\n", clientSocket);
+//    free(&clientSocket);
+
+    return NULL;
 }
 
 // Driver.
 int main() {
-    Init(serverSocket);
+    Init(&serverSocket);
     signal(SIGINT, endServer);
 
     // Sets socket property.
@@ -241,7 +332,7 @@ int main() {
     setTimeOutOpt(serverSocket, (char *) &timeout, sizeof(timeout));
     int optFlag = 1;
     setReuseAddrOpt(serverSocket, &optFlag, sizeof(optFlag));
-    setSocketNonblock(serverSocket);
+//    setSocketNonblock(serverSocket);
 
     // Address settings.
     struct sockaddr_in serverAddress;
