@@ -20,6 +20,9 @@
 #define IP "127.0.0.1"
 #define PORT 9696
 
+int loggerFd;
+
+
 void setUnlock();
 
 char *FONT_COLOR = {"\033[1;32;40m"};
@@ -347,8 +350,28 @@ void *clientHandler(void *argc) {
     return NULL;
 }
 
+void InitLogger(int *fd) {
+    if ((*fd = open("./../logger/fifo", O_WRONLY)) == -1) {
+        perror("Не смогли открыть канал");
+    }
+}
+
 // Driver.
 int main() {
+    InitLogger(&loggerFd);
+
+    char *buf = "./server.out: HEhehhehehehe";
+
+    int nwrite;
+    while (1) {
+        if ((nwrite = write(loggerFd, buf, strlen(buf))) != 0) {
+            printf("Записал\n");
+            nwrite = 0;
+
+            sleep(10);
+        }
+    }
+
     Init(&serverSocket);
     signal(SIGINT, endServer);
 
@@ -360,7 +383,7 @@ int main() {
     setTimeOutOpt(serverSocket, (char *) &timeout, sizeof(timeout));
     int optFlag = 1;
     setReuseAddrOpt(serverSocket, &optFlag, sizeof(optFlag));
-//    setSocketNonblock(serverSocket);
+    setSocketNonblock(serverSocket);
 
     // Address settings.
     struct sockaddr_in serverAddress;
