@@ -180,7 +180,7 @@ int main() {
                 logging(logFdOne, array);
             } else if (strstr(array, SECOND_LOG_NAME) != NULL) {
                 removeSubstring(array, SECOND_LOG_NAME);
-                logging(logFdOne, array);
+                logging(logFdTwo, array);
             } else {
                 prettyPrint("Что-то другое...", false);
             }
