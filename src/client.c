@@ -20,7 +20,7 @@
 #define PORT_1 9696
 #define PORT_2 9697
 
-#define MILESTONE 10
+#define MILESTONE 2
 
 void prettyPrint(char *msg, bool isError);
 

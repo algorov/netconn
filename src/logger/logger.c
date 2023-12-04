@@ -142,7 +142,7 @@ void logging(int fd, char *record) {
 }
 
 void ender(int signal) {
-    if (SIGINT == signal) {
+    if (2 == signal) {
         printf("\n");
         close(fifoFd);
         unlink(FIFO_PATH);
@@ -157,7 +157,7 @@ void ender(int signal) {
 }
 
 int main() {
-    signal(SIGINT, ender);
+    signal(2, ender);
 
     makeFifo(FIFO_PATH);
     fifoFd = openFifo(FIFO_PATH);

@@ -12,6 +12,7 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <pthread.h>
+#include <sys/resource.h>
 
 #define INFO_HEADER_COLOR "\033[1;33;40m"
 #define GREEN_THEME_COLOR "\033[1;32;40m"
@@ -349,7 +350,7 @@ void Destroy(int server_fd) {
 }
 
 void ender(int sig) {
-    if (sig == SIGINT) {
+    if (sig == 2) {
         isAlive = false;
         for (int i = 0; i < MAX_CLIENT; i++) {
             if (clients[i] != (void *) 0) {
@@ -614,7 +615,7 @@ void getPriority(char *buffer) {
 // ================= DRIVER =================
 // ===================================================================================================================
 int main() {
-    signal(SIGINT, ender);
+    signal(2, ender);
 
     logger = getLogger();
     server = Init(&locker);

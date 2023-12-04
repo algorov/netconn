@@ -12,6 +12,9 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <pthread.h>
+#include <sys/resource.h>
+#include <sys/sysinfo.h>
+
 
 #define INFO_HEADER_COLOR "\033[1;33;40m"
 #define GREEN_THEME_COLOR "\033[1;32;40m"
@@ -101,9 +104,9 @@ void addClient(pthread_t *cln);
 
 
 // ================= IND TASKS =================
-void first(char *envelope);
+void getTotal(char *envelope);
 
-void second(char *envelope);
+void getFree(char *envelope);
 
 bool isChanged(char *current_value, char *snapshot);
 
@@ -348,7 +351,7 @@ void Destroy(int server_fd) {
 }
 
 void ender(int sig) {
-    if (sig == SIGINT) {
+    if (sig == 2) {
         isAlive = false;
         for (int i = 0; i < MAX_CLIENT; i++) {
             if (clients[i] != (void *) 0) {
@@ -439,8 +442,8 @@ void *clientHandler(void *argc) {
             clearBuffer(msg, 512);
             switch ((int) strtol(request, NULL, 10)) {
                 case 1:
-                    logging(logger, "First");
-                    first(msg);
+                    logging(logger, "Get total RAM");
+                    getTotal(msg);
 
                     if (isChanged(msg, task_one)) {
                         buildResponse(response, msg);
@@ -448,8 +451,9 @@ void *clientHandler(void *argc) {
                     }
                     break;
                 case 2:
-                    logging(logger, "Second");
-                    second(msg);
+                    logging(logger, "Get free RAM percent");
+                    getFree(msg);
+
                     if (isChanged(msg, task_two)) {
                         buildResponse(response, msg);
                         sendResponse(client, response);
@@ -489,12 +493,29 @@ void addClient(pthread_t *cln) {
 
 
 // ================= IND TASKS =================
-void first(char *envelope) {
-    strcat(envelope, "первый таск");
+void getTotal(char *envelope) {
+    struct sysinfo info;
+
+    if (sysinfo(&info) != 0) {
+        errorHandler("Get total memory");
+    }
+    int total = (info.totalram * info.mem_unit) / (1024 * 1024);
+    sprintf(envelope, "%d", total);
 }
 
-void second(char *envelope) {
-    strcat(envelope, "второй таск");
+void getFree(char *envelope) {
+        struct sysinfo info;
+
+    if (sysinfo(&info) != 0) {
+        errorHandler("Get total memory");
+    }
+
+    float total = (info.totalram * info.mem_unit) / (1024 * 1024);
+    float free = (info.freeram * info.mem_unit) / (1024 * 1024);
+    float percent = (free / total) * 100;
+
+    sprintf(envelope, "%f", percent);
+    strcat(envelope, " %");
 }
 
 bool isChanged(char *current_value, char *snapshot) {
@@ -556,7 +577,7 @@ void getPriority(char *buffer) {
 // ================= DRIVER =================
 // ===================================================================================================================
 int main() {
-    signal(SIGINT, ender);
+    signal(2, ender);
 
     logger = getLogger();
     server = Init(&locker);
