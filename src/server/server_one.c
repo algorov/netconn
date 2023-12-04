@@ -456,6 +456,7 @@ void *clientHandler(void *argc) {
                     }
                     break;
                 case 3:
+                    logging(logger, "Help info");
                     buildResponse(response, information);
                     sendResponse(client, response);
                     break;
