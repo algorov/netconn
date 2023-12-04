@@ -406,8 +406,8 @@ void *clientHandler(void *argc) {
     Info("Client connected");
 
     char *localValue[64];
-    char *information = "\n[1] - \n"
-                        "[2] - \n"
+    char *information = "\n[1] - Получить текущее значение цвета\n"
+                        "[2] - Изменить цвет\n"
                         "[3] - Cпасательный круг\n"
                         "[4] - Ретироваться от сервера";
     char request[DEFAULT_CAPACITY];
