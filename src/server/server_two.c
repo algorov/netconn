@@ -405,8 +405,8 @@ void *clientHandler(void *argc) {
     Info("Client connected");
 
     char *task_one[64], *task_two[64];
-    char *information = "\n[1] - \n"
-                        "[2] - \n"
+    char *information = "\n[1] - Вывести объем доступной физической памяти\n"
+                        "[2] - Вывести процент свободной физической памяти\n"
                         "[3] - Cпасательный круг\n"
                         "[4] - Ретироваться от сервера";
     char request[DEFAULT_CAPACITY];
