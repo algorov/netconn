@@ -455,17 +455,22 @@ void *clientHandler(void *argc) {
 
                     clearBuffer(request, DEFAULT_CAPACITY);
                     struct timeval timeout = {
-                            .tv_sec = 100,
+                            .tv_sec = 20,
                             .tv_usec = 0,
                     };
 
                     fd_set set;
                     FD_ZERO(&set);
                     FD_SET(client, &set);
-                    if (Select(client + 1, &set, NULL, NULL, &timeout) > 0) {
+                    int status;
+                    if ((status = Select(client + 1, &set, NULL, NULL, &timeout)) > 0) {
                         if (FD_ISSET(client, &set)) {
                             read(client, request, DEFAULT_CAPACITY);
                         }
+                    } else if (status == 0) {
+                        buildResponse(response, "Запрос сброшен: превышено время ожидания ответа!");
+                        sendResponse(client, response);
+                        continue;
                     }
 
                     int code = -1;
