@@ -101,9 +101,9 @@ void addClient(pthread_t *cln);
 
 
 // ================= IND TASKS =================
-void first(char *envelope);
+void getColor(char *envelope);
 
-void second(char *envelope);
+bool setColor(int code);
 
 bool isChanged(char *current_value, char *snapshot);
 
@@ -124,6 +124,7 @@ int priority;
 bool changedMetric = false;
 
 bool isAlive = false;
+char *FONT_COLOR = {"\033[1;32;40m"};
 
 pthread_t clients[MAX_CLIENT];
 
@@ -404,7 +405,7 @@ void *clientHandler(void *argc) {
     int client = *(int *) argc;
     Info("Client connected");
 
-    char *task_one[64], *task_two[64];
+    char *localValue[64];
     char *information = "\n[1] - \n"
                         "[2] - \n"
                         "[3] - Cпасательный круг\n"
@@ -439,21 +440,44 @@ void *clientHandler(void *argc) {
             clearBuffer(msg, 512);
             switch ((int) strtol(request, NULL, 10)) {
                 case 1:
-                    logging(logger, "First");
-                    first(msg);
+                    logging(logger, "Get color");
+                    getColor(msg);
 
-                    if (isChanged(msg, task_one)) {
+                    if (isChanged(msg, localValue)) {
                         buildResponse(response, msg);
                         sendResponse(client, response);
                     }
                     break;
                 case 2:
-                    logging(logger, "Second");
-                    second(msg);
-                    if (isChanged(msg, task_two)) {
-                        buildResponse(response, msg);
-                        sendResponse(client, response);
+                    logging(logger, "Set color");
+                    buildResponse(response, "Выбери число от 0 до 6. Каждое число дифференцируется определенным оттенком");
+                    sendResponse(client, response);
+
+                    clearBuffer(request, DEFAULT_CAPACITY);
+                    struct timeval timeout = {
+                            .tv_sec = 100,
+                            .tv_usec = 0,
+                    };
+
+                    fd_set set;
+                    FD_ZERO(&set);
+                    FD_SET(client, &set);
+                    if (Select(client + 1, &set, NULL, NULL, &timeout) > 0) {
+                        if (FD_ISSET(client, &set)) {
+                            read(client, request, DEFAULT_CAPACITY);
+                        }
                     }
+
+                    int code = -1;
+                    int index = strcspn(request, "\n");
+                    if (request[index] == '\n') {
+                        request[index] = '\0';
+                    }
+
+                    sscanf(request, "%d", &code);
+                    buildResponse(response, setColor(code) ? "Успех!" : "Ошибка!");
+                    sendResponse(client, response);
+
                     break;
                 case 3:
                     logging(logger, "Help info");
@@ -489,12 +513,41 @@ void addClient(pthread_t *cln) {
 
 
 // ================= IND TASKS =================
-void first(char *envelope) {
-    strcat(envelope, "первый таск");
+void getColor(char *envelope) {
+    strcat(envelope, FONT_COLOR);
+    strcat(envelope, "\n");
+    strcat(envelope, "\033[1;0;0m");
 }
 
-void second(char *envelope) {
-    strcat(envelope, "второй таск");
+bool setColor(int code) {
+    switch (code) {
+        case 0:
+            FONT_COLOR = "\033[1;0;0m\n";
+            break;
+        case 1:
+            FONT_COLOR = "\033[1;47;30m\n";
+            break;
+        case 2:
+            FONT_COLOR = "\033[1;102;30m\n";
+            break;
+        case 3:
+            FONT_COLOR = "\033[1;101;30m\n";
+            break;
+        case 4:
+            FONT_COLOR = "\033[1;103;30m\n";
+            break;
+        case 5:
+            FONT_COLOR = "\033[1;104;30m\n";
+            break;
+        case 6:
+            FONT_COLOR = "\033[1;43;33m\n";
+            break;
+        default:
+            return false;
+            break;
+    }
+
+    return true;
 }
 
 bool isChanged(char *current_value, char *snapshot) {
